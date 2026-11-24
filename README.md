@@ -61,7 +61,7 @@ O workflow publica somente o console estático em `web/dist/`; ele não hospeda 
 
 O endereço de um site de projeto segue o formato `https://<OWNER>.github.io/<REPOSITORY>/`. Encontre o endereço efetivo em **Settings → Pages** ou no ambiente `github-pages`/deploy da execução bem-sucedida em **Actions**. Falhas de build ou publicação ficam visíveis na execução do workflow; verifique os logs do job que falhou e confirme a configuração de Pages e as permissões de Actions.
 
-O console usa o caminho `/opspilot/` para carregar os assets do site publicado. Para preencher a URL inicial da API no console publicado, configure a variável de repositório `VITE_API_BASE_URL` em **Settings → Secrets and variables → Actions → Variables** com a URL pública da API. Essa variável é incorporada ao site e não pode conter credenciais. A API precisa estar implantada separadamente e permitir a origem do site; mantenha chaves de provedores somente no ambiente do servidor da API.
+O console usa o caminho `/opspilot/` para carregar os assets do site publicado. Para conectar à API, abra **Configurações** na interface e informe a URL base pública. Opcionalmente, configure `VITE_API_BASE_URL` em **Settings → Secrets and variables → Actions → Variables** para pré-preencher esse campo no build; o valor é incorporado ao site e não pode conter credenciais. A API precisa estar implantada separadamente e permitir a origem `https://bvieiradeveloper.github.io`; mantenha chaves de provedores somente no ambiente do servidor da API.
 
 ## War Room Web
 
@@ -69,7 +69,7 @@ O console do War Room é um workspace Vite separado, servido sob `/opspilot/`. P
 
 ```powershell
 $env:OPSPILOT_USER_ID = "oncall-primary"
-$env:OPSPILOT_WEB_ORIGINS = "http://localhost:5173,https://console.example.com"
+$env:OPSPILOT_WEB_ORIGINS = "http://localhost:5173,https://bvieiradeveloper.github.io"
 npm run dev
 ```
 

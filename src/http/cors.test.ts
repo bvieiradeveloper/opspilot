@@ -33,7 +33,13 @@ test("War Room CORS allows exact origins and the required non-credentialed prefl
         memoryStore,
         requestTraceStore,
         chatIdempotencyStore: idempotencyStore,
-        warRoomConfig: { userId: "operator", webOrigins: ["http://localhost:5173"] },
+        warRoomConfig: {
+            userId: "operator",
+            webOrigins: [
+                "http://localhost:5173",
+                "https://bvieiradeveloper.github.io",
+            ],
+        },
         logger: { info: () => {} },
     }));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -53,6 +59,19 @@ test("War Room CORS allows exact origins and the required non-credentialed prefl
         assert.match(allowed.headers.get("access-control-allow-headers") ?? "", /Content-Type/i);
         assert.match(allowed.headers.get("access-control-allow-headers") ?? "", /Idempotency-Key/i);
         assert.equal(allowed.headers.get("access-control-allow-credentials"), null);
+
+        const pagesAllowed = await fetch(`${baseUrl}/chat`, {
+            method: "OPTIONS",
+            headers: {
+                Origin: "https://bvieiradeveloper.github.io",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type,idempotency-key",
+            },
+        });
+        assert.equal(
+            pagesAllowed.headers.get("access-control-allow-origin"),
+            "https://bvieiradeveloper.github.io",
+        );
 
         const denied = await fetch(`${baseUrl}/chat`, {
             method: "OPTIONS",
