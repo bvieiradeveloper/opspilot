@@ -37,6 +37,7 @@ export type ChatMessage = {
     trace?: ChatResponse["trace"];
     approvals?: ChatResponse["approvals"];
     retryKey?: string;
+    strategy?: "team";
     error?: string;
 };
 

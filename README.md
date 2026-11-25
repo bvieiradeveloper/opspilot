@@ -85,6 +85,16 @@ O modo War Room exige `OPSPILOT_USER_ID` e `OPSPILOT_WEB_ORIGINS`; origens devem
 
 Somente requisições HTTP com `Idempotency-Key` usam a identidade War Room, armazenamento de retries e aprovação persistida para mutações de incidentes. Chamadas existentes sem esse header mantêm o contrato explícito de `userId`; os fluxos MCP e CLI não são alterados por essa integração.
 
+### Modo equipe
+
+No War Room, selecione **Equipe** ou envie `POST /chat` com `"strategy": "team"` e um `Idempotency-Key` único. O modo equipe só é aceito pelo fluxo War Room; a rota legada sem chave responde `403 TEAM_MODE_REQUIRES_WAR_ROOM`.
+
+A equipe coordena três papéis: analista (somente leitura), planejador (sem ferramentas) e executor (operações de incidente protegidas por aprovação). As transferências aparecem como eventos `handoff` no trace, visível em **Ver raciocínio**, e a coordenação termina após no máximo oito transferências.
+
+Uma mutação proposta pelo executor retorna `202` com uma aprovação pendente. O incidente só é criado depois que um operador aprova a ação no War Room; não considere uma descrição em texto como prova de que uma proposta ou mutação foi registrada.
+
+O modo equipe usa o mesmo limite de processamento de 180 segundos das demais estratégias e pode fazer várias chamadas sequenciais ao modelo. Em caso de `504 REQUEST_TIMEOUT`, consulte o request ID e o estado das aprovações antes de tentar novamente. Reutilizar a mesma chave de idempotência reproduz o resultado já registrado; use uma nova chave apenas para iniciar uma nova solicitação, depois de confirmar que não houve mutação.
+
 ## API de chat
 
 Endpoint: `POST http://localhost:3000/chat`
@@ -97,15 +107,19 @@ Endpoint: `POST http://localhost:3000/chat`
 }
 ```
 
-`message` é obrigatório e não pode ficar vazio após o trim. `strategy` pode ser `react` ou `plan-and-execute` e, quando omitido, usa `react`. `reflect` é booleano e, quando omitido, vale `false`.
+`message` é obrigatório e não pode ficar vazio após o trim. `strategy` pode ser `react`, `plan-and-execute`, `reflect:react` ou `team`. Quando `strategy` é omitido, a API escolhe automaticamente uma estratégia; se a seleção automática estiver indisponível, usa `react`. `team` exige a configuração War Room e `Idempotency-Key`. `reflect` é booleano e, quando omitido, vale `false`; `strategy` explícita tem precedência sobre `reflect`.
 
 | Situação | HTTP | Resultado |
 |---|---:|---|
 | Solicitação processada | `200` | `answer`, `trace` e `metrics` |
+| Operação de incidente aguardando aprovação | `202` | Resposta com a aprovação pendente; nenhuma mutação executada |
 | Corpo inválido ou JSON malformado | `400` | Issues de validação ou erro de JSON seguro |
+| Modo equipe sem o fluxo War Room | `403` | `TEAM_MODE_REQUIRES_WAR_ROOM` |
+| Chave já em processamento ou reutilizada com outro pedido | `409` | `REQUEST_IN_PROGRESS` ou `IDEMPOTENCY_KEY_REUSED` |
 | Estratégia desconhecida | `422` | `UNKNOWN_STRATEGY` |
 | Limite de requisições do provedor do modelo | `429` | `MODEL_RATE_LIMITED` |
 | Todos os modelos configurados indisponíveis | `503` | `MODEL_UNAVAILABLE` |
+| War Room ou persistência de aprovação indisponível | `503` | `WAR_ROOM_NOT_CONFIGURED` ou `APPROVAL_UNAVAILABLE` |
 | Estratégia excede 180 segundos | `504` | `REQUEST_TIMEOUT` |
 | Falha interna da estratégia/servidor | `500` | `INTERNAL_ERROR` sem detalhes internos |
 
@@ -127,6 +141,17 @@ curl.exe --% -i -X POST "http://localhost:3000/chat" -H "Content-Type: applicati
 
 ```bash
 curl -i -X POST "http://localhost:3000/chat" -H "Content-Type: application/json" --data-raw '{"message":"Liste os alertas ativos do checkout","strategy":"plan-and-execute"}'
+```
+
+### 202: modo equipe no War Room
+
+Use uma chave nova por solicitação. Se uma mutação de incidente for proposta, a resposta inclui uma aprovação pendente para revisão no War Room:
+
+```bash
+curl -i -X POST "http://localhost:3000/chat" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 00000000-0000-4000-8000-000000000001" \
+  --data-raw '{"message":"Investigue os alertas ativos de payments e checkout","strategy":"team"}'
 ```
 
 ### 200: reflexão habilitada

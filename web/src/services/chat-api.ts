@@ -23,6 +23,7 @@ const errorSchema = z.object({
 export type SendChatInput = {
     message: string;
     conversationId?: string;
+    strategy?: "team";
     idempotencyKey: string;
     apiBaseUrl?: string;
 };
@@ -34,7 +35,8 @@ export async function sendChatMessage(
     const payload = z.object({
         message: z.string().trim().min(1),
         conversationId: z.string().trim().min(1).optional(),
-    }).parse({ message: input.message, conversationId: input.conversationId });
+        strategy: z.literal("team").optional(),
+    }).parse({ message: input.message, conversationId: input.conversationId, strategy: input.strategy });
     const key = z.string().min(1).max(200).parse(input.idempotencyKey);
     const apiBaseUrl = input.apiBaseUrl ?? getCurrentApiBaseUrl();
 

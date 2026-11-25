@@ -1,5 +1,6 @@
 import type { AlertStatus, Incident } from "./domain.js";
 import type { ContextBreakdown } from "../context/tokens.js";
+import { z } from "zod";
 
 export type ToolName =
     | "list_alerts"
@@ -12,9 +13,21 @@ export type ToolName =
     | "remember_user_fact"
     | "forget_preference";
 
-export type TraceEventNode = "context" | "router" | "react" | "plan-and-execute" | "reflection" | "response";
+export type TraceEventNode = "context" | "router" | "react" | "plan-and-execute" | "reflection" | "response" | "team";
+
+export const supportedRouteSchema = z.enum(["react", "plan-and-execute", "reflect:react", "team"]);
+export type SupportedRoute = z.infer<typeof supportedRouteSchema>;
+
+export const handoffTraceEventSchema = z.object({
+    type: z.literal("handoff"),
+    node: z.literal("team"),
+    from: z.enum(["supervisor", "analyst", "planner", "executor"]),
+    to: z.enum(["analyst", "planner", "executor"]),
+    brief: z.string().trim().min(1),
+});
 
 export type TraceEvent =
+    | z.infer<typeof handoffTraceEventSchema>
     | { type: "fallback"; node: TraceEventNode | string; from: string; to: string }
     | { type: "thought"; node: TraceEventNode | string; summary: string }
     | { type: "plan"; node: TraceEventNode | string; steps: string[] }
@@ -24,8 +37,6 @@ export type TraceEvent =
     | { type: "summarize"; node: TraceEventNode | string; conversationId: string; summary: string; summarizedThroughSequence: number }
     | { type: "answer"; node: TraceEventNode | string; text: string }
     | { type: "route"; node: "router"; route: SupportedRoute; reason: string };
-
-export type SupportedRoute = "react" | "plan-and-execute" | "reflect:react";
 
 export type Metrics = {
     IICalls: number;

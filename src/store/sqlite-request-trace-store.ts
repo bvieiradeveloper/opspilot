@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { z } from "zod";
+import { supportedRouteSchema } from "../agents/reasoning.js";
 import {
     requestMetricsSchema,
     requestRecordSchema,
@@ -28,7 +29,7 @@ const startRequestSchema = z.object({
 
 const completeRequestSchema = z.object({
     requestId: z.string().trim().min(1),
-    route: z.enum(["react", "plan-and-execute", "reflect:react"]).nullable(),
+    route: supportedRouteSchema.nullable(),
     status: requestStatusSchema.exclude(["in_progress"]),
     completedAt: z.string().datetime(),
     statusCode: z.number().int().min(100).max(599),
@@ -43,6 +44,58 @@ const analyticsWindowSchema = z.object({
 }).refine(({ startsAt, evaluatedAt }) => startsAt < evaluatedAt, {
     message: "The analytics window start must be before its evaluation time.",
 });
+
+function migrateTeamRouteConstraint(db: DatabaseSync): void {
+    const schemaRow = db.prepare(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'requests'",
+    ).get() as SqliteRow | undefined;
+    if (!schemaRow || typeof schemaRow.sql !== "string"
+        || !schemaRow.sql.includes("route IN") || schemaRow.sql.includes("'team'")) return;
+
+    db.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE;");
+    try {
+        db.exec(`
+            CREATE TABLE requests_new (
+                request_id TEXT PRIMARY KEY NOT NULL CHECK (length(trim(request_id)) > 0),
+                user_id TEXT NOT NULL CHECK (length(trim(user_id)) > 0),
+                route TEXT CHECK (route IS NULL OR route IN ('react', 'plan-and-execute', 'reflect:react', 'team')),
+                status TEXT NOT NULL CHECK (status IN ('in_progress', 'succeeded', 'failed', 'timed_out')),
+                started_at TEXT NOT NULL,
+                completed_at TEXT,
+                status_code INTEGER,
+                model_used TEXT,
+                prompt_tokens INTEGER CHECK (prompt_tokens IS NULL OR prompt_tokens >= 0),
+                provider_cost REAL CHECK (provider_cost IS NULL OR provider_cost >= 0),
+                latency_ms REAL CHECK (latency_ms IS NULL OR latency_ms >= 0),
+                metrics_json TEXT CHECK (metrics_json IS NULL OR json_valid(metrics_json)),
+                error_code TEXT,
+                CHECK (
+                    (status = 'in_progress' AND completed_at IS NULL AND status_code IS NULL
+                        AND route IS NULL AND model_used IS NULL AND prompt_tokens IS NULL
+                        AND latency_ms IS NULL AND metrics_json IS NULL AND error_code IS NULL)
+                    OR (status != 'in_progress' AND completed_at IS NOT NULL AND status_code IS NOT NULL)
+                )
+            );
+            INSERT INTO requests_new (
+                request_id, user_id, route, status, started_at, completed_at, status_code,
+                model_used, prompt_tokens, provider_cost, latency_ms, metrics_json, error_code
+            )
+            SELECT
+                request_id, user_id, route, status, started_at, completed_at, status_code,
+                model_used, prompt_tokens, provider_cost, latency_ms, metrics_json, error_code
+            FROM requests;
+            DROP TABLE requests;
+            ALTER TABLE requests_new RENAME TO requests;
+            CREATE INDEX idx_requests_started_at ON requests(started_at);
+            COMMIT;
+        `);
+    } catch (error) {
+        db.exec("ROLLBACK");
+        throw error;
+    } finally {
+        db.exec("PRAGMA foreign_keys = ON");
+    }
+}
 
 function text(row: SqliteRow, column: string): string {
     const value = row[column];
@@ -111,7 +164,7 @@ export class SqliteRequestTraceStore implements RequestTraceStore {
             CREATE TABLE IF NOT EXISTS requests (
                 request_id TEXT PRIMARY KEY NOT NULL CHECK (length(trim(request_id)) > 0),
                 user_id TEXT NOT NULL CHECK (length(trim(user_id)) > 0),
-                route TEXT CHECK (route IS NULL OR route IN ('react', 'plan-and-execute', 'reflect:react')),
+                route TEXT CHECK (route IS NULL OR route IN ('react', 'plan-and-execute', 'reflect:react', 'team')),
                 status TEXT NOT NULL CHECK (status IN ('in_progress', 'succeeded', 'failed', 'timed_out')),
                 started_at TEXT NOT NULL,
                 completed_at TEXT,
@@ -146,6 +199,7 @@ export class SqliteRequestTraceStore implements RequestTraceStore {
                     CHECK (provider_cost IS NULL OR provider_cost >= 0)
             `);
         }
+        migrateTeamRouteConstraint(this.db);
     }
 
     startRequest(input: StartRequestInput): void {

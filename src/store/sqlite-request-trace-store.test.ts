@@ -88,7 +88,7 @@ test("SQLite request records persist terminal metrics and ordered JSON trace eve
     }
 });
 
-test("SQLite request store upgrades existing schemas and validates provider costs", () => {
+test("SQLite request store upgrades route and cost constraints and validates provider costs", () => {
     withTemporaryDatabase((databasePath) => {
         mkdirSync(dirname(databasePath), { recursive: true });
         const legacy = new DatabaseSync(databasePath);
@@ -96,7 +96,7 @@ test("SQLite request store upgrades existing schemas and validates provider cost
             CREATE TABLE requests (
                 request_id TEXT PRIMARY KEY NOT NULL,
                 user_id TEXT NOT NULL,
-                route TEXT,
+                route TEXT CHECK (route IS NULL OR route IN ('react', 'plan-and-execute', 'reflect:react')),
                 status TEXT NOT NULL,
                 started_at TEXT NOT NULL,
                 completed_at TEXT,
@@ -118,7 +118,7 @@ test("SQLite request store upgrades existing schemas and validates provider cost
             store.startRequest({ requestId, userId: "operator-1", startedAt });
             assert.throws(() => store.completeRequest({
                 requestId,
-                route: "react",
+                route: "team",
                 status: "succeeded",
                 completedAt,
                 statusCode: 200,
@@ -128,7 +128,7 @@ test("SQLite request store upgrades existing schemas and validates provider cost
             }));
             store.completeRequest({
                 requestId,
-                route: "react",
+                route: "team",
                 status: "succeeded",
                 completedAt,
                 statusCode: 200,
@@ -137,6 +137,7 @@ test("SQLite request store upgrades existing schemas and validates provider cost
                 trace: [],
             });
             assert.equal(store.getRequestWithTrace(requestId)?.request.providerCost, 0.0005);
+            assert.equal(store.getRequestWithTrace(requestId)?.request.route, "team");
         } finally {
             store.close();
         }

@@ -56,6 +56,7 @@ test("GET /request/:id returns ordered trace and rejects unknown or malformed ID
             errorCode: null,
             trace: [
                 { type: "thought", node: "react", summary: "first" },
+                { type: "handoff", node: "team", from: "supervisor", to: "analyst", brief: "Collect current incident facts." },
                 { type: "answer", node: "response", text: "second" },
             ],
         });
@@ -63,13 +64,20 @@ test("GET /request/:id returns ordered trace and rejects unknown or malformed ID
         const response = await fetch(`${baseUrl}/request/stored-request`);
         const body = await response.json() as {
             request: { requestId: string; userId: string; route: string | null };
-            trace: Array<{ sequence: number }>;
+            trace: Array<{ sequence: number; payload: Record<string, unknown> }>;
         };
         assert.equal(response.status, 200);
         assert.equal(body.request.requestId, "stored-request");
         assert.equal(body.request.userId, "operator-1");
         assert.equal(body.request.route, "react");
-        assert.deepEqual(body.trace.map(({ sequence }) => sequence), [1, 2]);
+        assert.deepEqual(body.trace.map(({ sequence }) => sequence), [1, 2, 3]);
+        assert.deepEqual(body.trace[1]?.payload, {
+            type: "handoff",
+            node: "team",
+            from: "supervisor",
+            to: "analyst",
+            brief: "Collect current incident facts.",
+        });
 
         const pluralResponse = await fetch(`${baseUrl}/requests/stored-request`);
         assert.equal(pluralResponse.status, 404);

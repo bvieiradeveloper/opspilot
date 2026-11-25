@@ -32,25 +32,48 @@ test("chat shows an empty state and renders an assistant answer once", async () 
     assert.equal(screen.getAllByText("safe").length, 1);
 });
 
+test("chat sends team mode when the operator selects it", async () => {
+    let sentBody: Record<string, unknown> | undefined;
+    globalThis.fetch = async (_input, init) => {
+        sentBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return new Response(JSON.stringify(result), { status: 200 });
+    };
+    const user = userEvent.setup();
+    render(<Chat />);
+
+    await user.selectOptions(screen.getByLabelText("Modo de equipe"), "team");
+    await user.type(screen.getByLabelText("Mensagem"), "Investigate payment API latency");
+    await user.click(screen.getByRole("button", { name: "Enviar" }));
+    await screen.findByText("safe");
+
+    assert.equal(sentBody?.strategy, "team");
+    assert.equal(sentBody?.message, "Investigate payment API latency");
+});
+
 test("failed chat retry reuses its key and does not duplicate the submitted message", async () => {
     const keys: string[] = [];
+    const strategies: unknown[] = [];
     let attempts = 0;
     globalThis.fetch = async (_input, init) => {
         keys.push((init?.headers as Record<string, string>)["Idempotency-Key"] ?? "");
+        strategies.push((JSON.parse(String(init?.body)) as Record<string, unknown>).strategy);
         attempts += 1;
         if (attempts === 1) throw new TypeError("network disconnected");
         return new Response(JSON.stringify(result), { status: 200 });
     };
     const user = userEvent.setup();
     render(<Chat />);
+    await user.selectOptions(screen.getByLabelText("Modo de equipe"), "team");
     await user.type(screen.getByLabelText("Mensagem"), "Check checkout");
     await user.click(screen.getByRole("button", { name: "Enviar" }));
     await screen.findByRole("button", { name: "Tentar novamente" });
+    await user.selectOptions(screen.getByLabelText("Modo de equipe"), "auto");
     await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
 
     await waitFor(() => assert.equal(screen.getAllByText("Check checkout").length, 1));
     assert.equal(keys.length, 2);
     assert.equal(keys[0], keys[1]);
+    assert.deepEqual(strategies, ["team", "team"]);
     assert.ok(screen.getByText("safe"));
 });
 

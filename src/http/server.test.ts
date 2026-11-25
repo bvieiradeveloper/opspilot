@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
-import { createChatApp, type ChatAppOptions } from "./server.js";
+import { chatResponseSchema, createChatApp, type ChatAppOptions } from "./server.js";
 import type { ReasoningStrategy } from "../agents/reasoning.js";
 import { ModelUnavailableError } from "../agents/errors.js";
 import { SqliteConversationStore } from "../store/sqlite-conversation-store.js";
@@ -555,6 +555,27 @@ test("POST /chat rejects an unknown strategy with 422", async () => {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ message: "Check status", userId: "test-user", strategy: "missing" }),
         });
+
+        test("legacy POST /chat rejects team mode before invoking an unguarded strategy", async () => {
+            const calls: string[] = [];
+            const team = {
+                name: "team",
+                async run() {
+                    calls.push("team");
+                    return { answer: "unsafe", trace: [], metrics: { IICalls: 1, latencyMs: 1 } };
+                },
+            };
+            await withChatServer(new Map([["team", team]]), async (baseUrl) => {
+                const response = await fetch(`${baseUrl}/chat`, {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ message: "Open an incident", userId: "test-user", strategy: "team" }),
+                });
+                assert.equal(response.status, 403);
+                assert.equal((await response.json() as { error: { code: string } }).error.code, "TEAM_MODE_REQUIRES_WAR_ROOM");
+                assert.deepEqual(calls, []);
+            });
+        });
         const result = await response.json() as { error: { code: string } };
 
         assert.equal(response.status, 422);
@@ -743,4 +764,41 @@ test("POST /chat keeps conversation histories separate and rejects an unknown ID
 
     assert.deepEqual(calls.map(({ history }) => history[0]?.content), ["first-only", "second-only"]);
     assert.equal(calls.length, 2);
+});
+
+test("chat response schema validates operator-safe handoff events", () => {
+    const body = chatResponseSchema.parse({
+        requestId: "request-1",
+        conversationId: "conversation-1",
+        answer: "Incident facts collected.",
+        trace: [{
+            type: "handoff",
+            node: "team",
+            from: "supervisor",
+            to: "analyst",
+            brief: "Collect current incident facts.",
+        }],
+        metrics: {
+            IICalls: 1,
+            latencyMs: 1,
+            promptTokens: null,
+            contextBreakdown: {},
+            historyMessages: 0,
+        },
+    });
+
+    assert.deepEqual(body.trace[0], {
+        type: "handoff",
+        node: "team",
+        from: "supervisor",
+        to: "analyst",
+        brief: "Collect current incident facts.",
+    });
+    assert.throws(() => chatResponseSchema.parse({
+        requestId: "request-1",
+        conversationId: "conversation-1",
+        answer: "Incident facts collected.",
+        trace: [{ type: "handoff", node: "team", from: "supervisor", to: "done", brief: "Finished." }],
+        metrics: { IICalls: 1, latencyMs: 1, promptTokens: null, contextBreakdown: {}, historyMessages: 0 },
+    }));
 });

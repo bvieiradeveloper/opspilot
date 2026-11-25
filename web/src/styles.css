@@ -68,7 +68,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .message h2 { margin: 0 0 var(--space-2); font-size: 0.9rem; color: var(--muted-ink); }
 .chat-form { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: 1rem; color: var(--ink); background: var(--surface); }
 .chat-form label, .settings-dialog label { font-weight: 650; }
-.chat-form textarea, .settings-dialog input, .settings-dialog select { width: 100%; padding: var(--space-3); border: 1px solid #66758a; border-radius: 0.5rem; color: var(--ink); background: var(--surface); }
+.chat-form textarea, .chat-form select, .settings-dialog input, .settings-dialog select { width: 100%; padding: var(--space-3); border: 1px solid #66758a; border-radius: 0.5rem; color: var(--ink); background: var(--surface); }
 .chat-form button { justify-self: end; min-width: 7rem; }
 .live-status { min-height: 1.5rem; margin: 0; }
 .markdown :first-child { margin-top: 0; }

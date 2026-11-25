@@ -29,6 +29,32 @@ test("production graph override skips automatic routing and records route trace"
         strategies: new Map([["plan-and-execute", strategy("plan-and-execute", calls)]]),
         modelFactory,
     });
+
+    test("production graph explicit team route bypasses automatic routing", async () => {
+        const calls: string[] = [];
+        let modelCalls = 0;
+        const modelFactory = (() => {
+            modelCalls += 1;
+            throw new Error("explicit team route must not use automatic routing");
+        }) as never;
+        const graph = createProductionGraph({
+            strategies: new Map([["team", strategy("team", calls)]]),
+            modelFactory,
+        });
+
+        const result = await graph.invoke({
+            input: { request: "Investigate the payment incident", userId: "user-1", strategy: "team" },
+        });
+
+        assert.equal(modelCalls, 0);
+        assert.deepEqual(calls, ["team"]);
+        assert.deepEqual(result.trace[0], {
+            type: "route",
+            node: "router",
+            route: "team",
+            reason: "Explicit strategy override.",
+        });
+    });
     const result = await graph.invoke({
         input: { request: "Build plan", userId: "user-1", strategy: "plan-and-execute" },
     });

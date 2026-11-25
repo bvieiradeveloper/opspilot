@@ -11,6 +11,7 @@ import {
     UnknownStrategyError,
 } from "../agents/errors.js";
 import type { ReasoningStrategy } from "../agents/reasoning.js";
+import { handoffTraceEventSchema, supportedRouteSchema } from "../agents/reasoning.js";
 import { withReflection, type ReflectionOptions } from "../agents/reflection.js";
 import type { ConversationStore } from "../store/conversation-store.js";
 import { createConfiguredSqliteConversationStore } from "../store/sqlite-conversation-store.js";
@@ -64,8 +65,9 @@ const legacyChatRequestSchema = chatRequestSchema.extend({
 
 const traceNodeSchema = z.string().trim().min(1);
 const traceEventSchema = z.discriminatedUnion("type", [
+    handoffTraceEventSchema,
     z.object({ type: z.literal("fallback"), node: traceNodeSchema, from: z.string().trim().min(1), to: z.string().trim().min(1) }),
-    z.object({ type: z.literal("route"), node: z.literal("router"), route: z.enum(["react", "plan-and-execute", "reflect:react"]), reason: z.string().trim().min(1) }),
+    z.object({ type: z.literal("route"), node: z.literal("router"), route: supportedRouteSchema, reason: z.string().trim().min(1) }),
     z.object({ type: z.literal("thought"), node: traceNodeSchema, summary: z.string() }),
     z.object({ type: z.literal("plan"), node: traceNodeSchema, steps: z.array(z.string()) }),
     z.object({
@@ -79,7 +81,7 @@ const traceEventSchema = z.discriminatedUnion("type", [
     z.object({ type: z.literal("answer"), node: traceNodeSchema, text: z.string() }),
 ]);
 
-const chatResponseSchema = z.object({
+export const chatResponseSchema = z.object({
     requestId: z.string().trim().min(1),
     conversationId: z.string().trim().min(1),
     answer: z.string(),
@@ -265,6 +267,16 @@ export function createChatApp(options: ChatAppOptions = {}): Express {
         const parsedRequest = (isWarRoomRequest ? chatRequestSchema : legacyChatRequestSchema).safeParse(request.body);
         if (!parsedRequest.success) {
             response.status(400).json({ issues: parsedRequest.error.issues });
+            return;
+        }
+
+        if (!isWarRoomRequest && parsedRequest.data.strategy === "team") {
+            response.status(403).json({
+                error: {
+                    code: "TEAM_MODE_REQUIRES_WAR_ROOM",
+                    message: "Team mode is available only through the approval-aware War Room.",
+                },
+            });
             return;
         }
 

@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { supportedRouteSchema } from "../agents/reasoning.js";
 
 const logMetadataSchema = z.object({
     timestamp: z.string().datetime().optional(),
     event: z.string().trim().min(1),
     requestId: z.string().trim().min(1).optional(),
     node: z.string().trim().min(1).optional(),
-    route: z.enum(["react", "plan-and-execute", "reflect:react"]).optional(),
+    route: supportedRouteSchema.optional(),
     outcome: z.enum(["in_progress", "succeeded", "failed", "timed_out"]).optional(),
     statusCode: z.number().int().min(100).max(599).optional(),
     durationMs: z.number().finite().nonnegative().optional(),

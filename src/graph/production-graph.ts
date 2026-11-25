@@ -9,9 +9,9 @@ import { createRunMetrics } from "../agents/metrics.js";
 import { createReactStrategy } from "../agents/react.js";
 import { createPlanAndExecuteStrategy } from "../agents/plan-and-execute.js";
 import { withReflection, type ReflectionOptions } from "../agents/reflection.js";
-import type { Metrics, ReasoningInput, ReasoningResult, ReasoningStrategy, SupportedRoute, TraceEvent } from "../agents/reasoning.js";
+import { supportedRouteSchema, type Metrics, type ReasoningInput, type ReasoningResult, type ReasoningStrategy, type SupportedRoute, type TraceEvent } from "../agents/reasoning.js";
 
-export const supportedRoutes = ["react", "plan-and-execute", "reflect:react"] as const;
+export const supportedRoutes = supportedRouteSchema.options;
 export const routeDecisionSchema = z.object({
     route: z.enum(["react", "plan-and-execute", "reflect:react"]),
     reason: z.string().trim().min(1),
@@ -40,14 +40,14 @@ const GraphState = Annotation.Root({
     metrics: Annotation<Metrics>({ default: () => ({ IICalls: 0, latencyMs: 0 }), reducer: (_current, update) => update }),
 });
 
-function normalizeTrace(trace: readonly TraceEvent[], node: "react" | "plan-and-execute" | "reflection"): TraceEvent[] {
+function normalizeTrace(trace: readonly TraceEvent[], node: "react" | "plan-and-execute" | "reflection" | "team"): TraceEvent[] {
     return trace.map((event) => ({ ...event, node } as TraceEvent));
 }
 
 async function executeStrategy(
     state: typeof GraphState.State,
     route: SupportedRoute,
-    node: "react" | "plan-and-execute" | "reflection",
+    node: "react" | "plan-and-execute" | "reflection" | "team",
     strategies: ReadonlyMap<string, ReasoningStrategy>,
     options: ProductionGraphOptions,
 ) {
@@ -125,15 +125,23 @@ export function createProductionGraph(options: ProductionGraphOptions = {}) {
         .addNode("react", async (state) => executeStrategy(state, "react", "react", strategies, options))
         .addNode("plan-and-execute", async (state) => executeStrategy(state, "plan-and-execute", "plan-and-execute", strategies, options))
         .addNode("reflection", async (state) => executeStrategy(state, "reflect:react", "reflection", strategies, options))
+        .addNode("team", async (state) => executeStrategy(state, "team", "team", strategies, options))
         .addNode("response", async (state) => ({ answer: state.answer, trace: [], metrics: state.metrics }))
         .addEdge(START, "context")
         .addEdge("context", "router")
-        .addConditionalEdges("router", (state) => state.selectedStrategy === "react" ? "react" : state.selectedStrategy === "plan-and-execute" ? "plan-and-execute" : "reflection", {
-            react: "react", "plan-and-execute": "plan-and-execute", reflection: "reflection",
+        .addConditionalEdges("router", (state) => state.selectedStrategy === "react"
+            ? "react"
+            : state.selectedStrategy === "plan-and-execute"
+                ? "plan-and-execute"
+                : state.selectedStrategy === "team"
+                    ? "team"
+                    : "reflection", {
+            react: "react", "plan-and-execute": "plan-and-execute", reflection: "reflection", team: "team",
         })
         .addEdge("react", "response")
         .addEdge("plan-and-execute", "response")
         .addEdge("reflection", "response")
+        .addEdge("team", "response")
         .addEdge("response", END);
     return graph.compile();
 }

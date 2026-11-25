@@ -12,11 +12,18 @@ export function Chat() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [conversationId, setConversationId] = useState<string | undefined>();
     const [draft, setDraft] = useState("");
+    const [strategy, setStrategy] = useState<"auto" | "team">("auto");
     const [busy, setBusy] = useState(false);
     const [notice, setNotice] = useState("");
     const sending = useRef(false);
 
-    async function send(text: string, key: string, appendMessage: boolean, existingAssistantId?: string) {
+    async function send(
+        text: string,
+        key: string,
+        appendMessage: boolean,
+        existingAssistantId?: string,
+        requestStrategy?: "team",
+    ) {
         if (sending.current) return;
         sending.current = true;
         setBusy(true);
@@ -26,7 +33,7 @@ export function Chat() {
             setMessages((current) => [
                 ...current,
                 { id: id(), role: "user", content: text, status: "complete" },
-                { id: assistantId, role: "assistant", content: "", status: "sending", retryKey: key },
+                { id: assistantId, role: "assistant", content: "", status: "sending", retryKey: key, strategy: requestStrategy },
             ]);
         } else {
             setMessages((current) => current.map((message) => message.id === assistantId
@@ -38,6 +45,7 @@ export function Chat() {
             const result = await sendChatMessage({
                 message: text,
                 conversationId,
+                strategy: requestStrategy,
                 idempotencyKey: key,
             });
             setConversationId(result.response.conversationId);
@@ -69,13 +77,13 @@ export function Chat() {
         const text = draft.trim();
         if (!text || sending.current) return;
         setDraft("");
-        void send(text, id(), true);
+        void send(text, id(), true, undefined, strategy === "team" ? "team" : undefined);
     }
 
     function retry(message: ChatMessage, userText: string) {
         const savedKey = message.retryKey;
         if (!savedKey) return;
-        void send(userText, savedKey, false, message.id);
+        void send(userText, savedKey, false, message.id, message.strategy);
     }
 
     return (
@@ -95,6 +103,16 @@ export function Chat() {
                 <MessageList messages={messages} onRetry={retry} />
             )}
             <form className="chat-form" onSubmit={submit}>
+                <label htmlFor="chat-strategy">Modo de equipe</label>
+                <select
+                    id="chat-strategy"
+                    value={strategy}
+                    onChange={(event) => setStrategy(event.currentTarget.value === "team" ? "team" : "auto")}
+                    disabled={busy}
+                >
+                    <option value="auto">Automático</option>
+                    <option value="team">Equipe</option>
+                </select>
                 <label htmlFor="chat-message">Mensagem</label>
                 <textarea
                     id="chat-message"

@@ -5,6 +5,8 @@ import type { OpsStore } from "../store/ops-store.js";
 import { store as defaultStore } from "./store.js";
 import { createApprovalAwareTools } from "./approval-tools.js";
 import type { IncidentProposal } from "../services/approval-service.js";
+import { createWarRoomTeamStrategy } from "../team/index.js";
+import type { createModel } from "./model.js";
 
 export function createStrategyRegistry(store: OpsStore = defaultStore): ReadonlyMap<string, ReasoningStrategy> {
     const react = createReactStrategy({ store });
@@ -18,13 +20,16 @@ export function createStrategyRegistry(store: OpsStore = defaultStore): Readonly
 export function createWarRoomStrategyRegistry(
     store: OpsStore,
     onProposal: (proposal: IncidentProposal) => void,
+    modelFactory?: typeof createModel,
 ): ReadonlyMap<string, ReasoningStrategy> {
     const tools = createApprovalAwareTools(store, onProposal);
     const react = createReactStrategy({ store, tools });
     const planAndExecute = createPlanAndExecuteStrategy({ store, tools });
+    const team = createWarRoomTeamStrategy(store, onProposal, modelFactory);
     return new Map([
         [react.name, react],
         [planAndExecute.name, planAndExecute],
+        [team.name, team],
     ]);
 }
 

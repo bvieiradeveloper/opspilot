@@ -12,6 +12,7 @@ function literal(value: unknown): string {
 
 function eventLabel(event: TraceEventData): string {
     if (event.type === "answer") return "Resposta";
+    if (event.type === "handoff") return "Transferência";
     const labels: Record<string, string> = {
         thought: "Pensamento",
         action: "Ação",
@@ -20,8 +21,44 @@ function eventLabel(event: TraceEventData): string {
     return labels[event.type] ?? event.type;
 }
 
+type HandoffEvent = {
+    type: "handoff";
+    node: "team";
+    from: "supervisor" | "analyst" | "planner" | "executor";
+    to: "analyst" | "planner" | "executor";
+    brief: string;
+};
+
+function isHandoffEvent(event: TraceEventData): event is HandoffEvent {
+    const sources = new Set(["supervisor", "analyst", "planner", "executor"]);
+    const destinations = new Set(["analyst", "planner", "executor"]);
+    return event.type === "handoff"
+        && event.node === "team"
+        && typeof event.from === "string"
+        && sources.has(event.from)
+        && typeof event.to === "string"
+        && destinations.has(event.to)
+        && typeof event.brief === "string";
+}
+
 export function TraceEvent({ event, index }: { event: TraceEventData; index: number }) {
     const data = event as Record<string, unknown>;
+    if (isHandoffEvent(event)) {
+        const roleNames = {
+            supervisor: "supervisor",
+            analyst: "analista",
+            planner: "planejador",
+            executor: "executor",
+        } as const;
+        return (
+            <li className={`trace-event trace-${event.type}`} data-event-type={event.type}>
+                <h3>{index + 1}. {eventLabel(event)}</h3>
+                <p className="trace-node">Etapa: equipe</p>
+                <p>De <strong>{roleNames[event.from]}</strong> para <strong>{roleNames[event.to]}</strong></p>
+                <p>{event.brief}</p>
+            </li>
+        );
+    }
     return (
         <li className={`trace-event trace-${event.type}`} data-event-type={event.type}>
             <h3>{index + 1}. {eventLabel(event)}</h3>

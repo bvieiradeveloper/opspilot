@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { supportedRouteSchema } from "../agents/reasoning.js";
 import {
     requestAnalyticsRecordSchema,
     type RequestAnalyticsRecord,
@@ -55,7 +56,7 @@ export const requestAnalyticsResponseSchema = z.object({
     evaluatedAt: z.string().datetime(),
     overall: summarySchema,
     byRoute: z.array(summarySchema.extend({
-        route: z.enum(["react", "plan-and-execute", "reflect:react"]).nullable(),
+        route: supportedRouteSchema.nullable(),
     })),
     byModel: z.array(summarySchema.extend({
         model: z.string().trim().min(1).nullable(),

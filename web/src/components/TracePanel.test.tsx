@@ -35,6 +35,32 @@ test("trace panel preserves event order and displays trace values literally", as
     assert.ok(screen.getByText(/<script>bad\(\)<\/script>/));
 });
 
+test("trace panel renders ordered team handoffs with source, destination, and brief", async () => {
+    const messages: ChatMessage[] = [{
+        id: "assistant-team",
+        role: "assistant",
+        content: "Incident response recorded.",
+        status: "complete",
+        trace: [
+            { type: "handoff", node: "team", from: "supervisor", to: "analyst", brief: "Collect factual incident evidence." },
+            { type: "handoff", node: "team", from: "analyst", to: "planner", brief: "Plan from verified facts." },
+        ],
+    }];
+    const user = userEvent.setup();
+    render(<MessageList messages={messages} onRetry={() => {}} />);
+    await user.click(screen.getByRole("button", { name: /Ver raciocínio/ }));
+
+    assert.deepEqual(
+        screen.getAllByRole("heading", { level: 3 }).map((node) => node.textContent),
+        ["1. Transferência", "2. Transferência"],
+    );
+    assert.ok(screen.getByText("supervisor"));
+    assert.equal(screen.getAllByText("analista").length, 2);
+    assert.ok(screen.getByText("planejador"));
+    assert.ok(screen.getByText("Collect factual incident evidence."));
+    assert.ok(screen.getByText("Plan from verified facts."));
+});
+
 test("Escape closes the trace panel and restores focus to its opener", async () => {
     const user = userEvent.setup();
     render(<MessageList

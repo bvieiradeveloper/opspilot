@@ -7,12 +7,13 @@ import { ConversationSummarizationError, ModelUnavailableError } from "../agents
 import { createConversationSummarizer, type ConversationSummarizer } from "./conversation-summarizer.js";
 import { runProductionGraph, type ProductionGraphOptions } from "../graph/production-graph.js";
 import type { TraceEvent } from "../agents/reasoning.js";
+import { supportedRouteSchema } from "../agents/reasoning.js";
 
 const chatInputSchema = z.object({
     message: z.string().trim().min(1),
     userId: z.string().trim().min(1),
     conversationId: z.string().trim().min(1).optional(),
-    strategy: z.enum(["react", "plan-and-execute", "reflect:react"]).optional(),
+    strategy: supportedRouteSchema.optional(),
     reflect: z.boolean().optional(),
 });
 

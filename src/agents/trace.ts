@@ -41,6 +41,8 @@ export function formatTrace(events: readonly TraceEvent[]): string {
                 return `${index + 1}. critique@${event.node}: ${event.summary}`;
             case "summarize":
                 return `${index + 1}. summarize@${event.node}: ${event.summary}`;
+            case "handoff":
+                return `${index + 1}. handoff@${event.node}: ${event.from} -> ${event.to} — ${event.brief}`;
             case "answer":
                 return `${index + 1}. answer@${event.node}: ${event.text}`;
         }

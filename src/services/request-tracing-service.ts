@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { RequestNotFoundError } from "../agents/errors.js";
-import type { Metrics, TraceEvent } from "../agents/reasoning.js";
+import type { Metrics, SupportedRoute, TraceEvent } from "../agents/reasoning.js";
 import type { OperationalLogger } from "../obs/logger.js";
 import type { RequestTraceStore } from "../store/request-trace-store.js";
 
@@ -58,7 +58,7 @@ export class RequestTracingService {
 
     private finalize(
         requestId: string,
-        route: "react" | "plan-and-execute" | "reflect:react" | null,
+        route: SupportedRoute | null,
         status: "succeeded" | "failed" | "timed_out",
         statusCode: number,
         metrics: Metrics | null,

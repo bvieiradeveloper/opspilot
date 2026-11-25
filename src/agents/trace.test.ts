@@ -43,3 +43,15 @@ test("formats nested action arguments with deterministic key order", () => {
 
     assert.match(formatted, /\{"filter":\{"a":2,"z":1\},"status":"firing"\}/);
 });
+
+test("formats handoffs with source, destination, and brief", () => {
+    const formatted = formatTrace([{
+        type: "handoff",
+        node: "team",
+        from: "supervisor",
+        to: "analyst",
+        brief: "Collect current incident facts.",
+    } as never]);
+
+    assert.equal(formatted, "1. handoff@team: supervisor -> analyst — Collect current incident facts.");
+});

@@ -3,7 +3,8 @@ import { z } from "zod";
 const node = z.string().min(1);
 const knownTraceEventSchema = z.discriminatedUnion("type", [
     z.object({ type: z.literal("fallback"), node, from: z.string(), to: z.string() }),
-    z.object({ type: z.literal("route"), node: z.literal("router"), route: z.enum(["react", "plan-and-execute", "reflect:react"]), reason: z.string() }),
+    z.object({ type: z.literal("handoff"), node: z.literal("team"), from: z.enum(["supervisor", "analyst", "planner", "executor"]), to: z.enum(["analyst", "planner", "executor"]), brief: z.string().min(1) }),
+    z.object({ type: z.literal("route"), node: z.literal("router"), route: z.enum(["react", "plan-and-execute", "reflect:react", "team"]), reason: z.string() }),
     z.object({ type: z.literal("thought"), node, summary: z.string() }),
     z.object({ type: z.literal("plan"), node, steps: z.array(z.string()) }),
     z.object({

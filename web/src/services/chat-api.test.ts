@@ -52,6 +52,19 @@ test("chat client sends a follow-up conversation ID and validates its response",
     }, async () => new Response("{", { status: 200 })), ApiRequestError);
 });
 
+test("chat client sends an explicitly selected team strategy", async () => {
+    const doFetch: typeof fetch = async (_input, init) => {
+        assert.deepEqual(JSON.parse(String(init?.body)), { message: "Investigate incident", strategy: "team" });
+        return new Response(JSON.stringify(responseBody), { status: 200 });
+    };
+    await sendChatMessage({
+        message: "Investigate incident",
+        strategy: "team",
+        idempotencyKey: "team-key",
+        apiBaseUrl: "http://localhost:3000",
+    }, doFetch);
+});
+
 test("chat client validates HTTP 202 approvals and surfaces HTTP and network failures", async () => {
     await assert.rejects(() => sendChatMessage({
         message: "pending",

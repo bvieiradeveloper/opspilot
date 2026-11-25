@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Metrics, SupportedRoute, TraceEvent } from "../agents/reasoning.js";
+import { supportedRouteSchema, type Metrics, type SupportedRoute, type TraceEvent } from "../agents/reasoning.js";
 
 export const requestStatusSchema = z.enum(["in_progress", "succeeded", "failed", "timed_out"]);
 export type RequestStatus = z.infer<typeof requestStatusSchema>;
@@ -17,7 +17,7 @@ export const requestMetricsSchema = z.object({
 export const requestRecordSchema = z.object({
     requestId: z.string().trim().min(1),
     userId: z.string().trim().min(1),
-    route: z.enum(["react", "plan-and-execute", "reflect:react"]).nullable(),
+    route: supportedRouteSchema.nullable(),
     status: requestStatusSchema,
     startedAt: z.string().datetime(),
     completedAt: z.string().datetime().nullable(),
@@ -49,7 +49,7 @@ export const requestAnalyticsRecordSchema = z.object({
     requestId: z.string().trim().min(1),
     startedAt: z.string().datetime(),
     status: requestStatusSchema,
-    route: z.enum(["react", "plan-and-execute", "reflect:react"]).nullable(),
+    route: supportedRouteSchema.nullable(),
     modelUsed: z.string().trim().min(1).nullable(),
     promptTokens: z.number().int().nonnegative().nullable(),
     providerCost: z.number().finite().nonnegative().nullable(),
